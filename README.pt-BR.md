@@ -172,7 +172,7 @@ bun run preview      # http://127.0.0.1:4517 — as duas páginas com um host si
 
 **Preview.** `bun run preview` serve o painel lateral e a seção do Work Status compilados dentro de uma página que faz o papel do OpenChamber, com contas falsas e arquivos em memória. A barra de ferramentas simula rotação de tokens, chat ocupado, login trocado, logout e serviço de uso não aprovado, e mostra os arquivos, o armazenamento e as chamadas ao host enquanto as páginas os alteram. Ela nunca mexe no seu login real do Claude Code. Parâmetros: `?locale=pt-BR`, `?theme=light`, `?view=panel`, `?view=status`.
 
-**Publicando mudanças.** O OpenChamber nunca compila TypeScript: ele carrega o `panel/main.js`, o `status/main.js` e o `service/main.js` do repositório. Recompile e faça commit dos três a cada mudança no código (o CI falha quando um deles está desatualizado) e aumente a `version` no `package.json` para que as instalações via Git ofereçam a atualização.
+**Publicando mudanças.** O OpenChamber nunca compila TypeScript: ele carrega o `panel/main.js`, o `status/main.js` e o `service/main.js` do repositório. Compile com o Bun 1.4.2, a versão que o CI usa: outras versões do Bun minificam de outro jeito, e aí o CI acusa os bundles como desatualizados. Recompile e faça commit dos três a cada mudança no código (o CI falha quando um deles está desatualizado) e aumente a `version` no `package.json` para que as instalações via Git ofereçam a atualização.
 
 **Testando no OpenChamber.** Instale seu clone como extensão de pasta (veja [Por uma pasta local](#por-uma-pasta-local)), rode `bun run build` e reabra o painel ou a seção. Mudanças no manifesto (como uma seção nova) pedem recarregar a janela.
 

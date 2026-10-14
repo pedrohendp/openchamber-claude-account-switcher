@@ -172,7 +172,7 @@ bun run preview      # http://127.0.0.1:4517 — both pages with a simulated hos
 
 **Preview.** `bun run preview` serves the built rail panel and Work Status section inside a page that plays OpenChamber's part with fake accounts and in-memory files. Its toolbar simulates token rotation, a busy chat, a mismatched login, signing out, and an unapproved usage service, and it shows the files, the storage, and the host calls as the pages change them. It never touches your real Claude Code login. Query parameters: `?locale=pt-BR`, `?theme=light`, `?view=panel`, `?view=status`.
 
-**Shipping changes.** OpenChamber never compiles TypeScript: it loads `panel/main.js`, `status/main.js`, and `service/main.js` as committed. Rebuild and commit all three with every source change (CI fails when one is stale), and bump `version` in `package.json` so Git installs offer the update.
+**Shipping changes.** OpenChamber never compiles TypeScript: it loads `panel/main.js`, `status/main.js`, and `service/main.js` as committed. Build them with Bun 1.4.2, the version CI uses: other Bun versions minify differently, and CI then reports the bundles as stale. Rebuild and commit all three with every source change (CI fails when one is stale), and bump `version` in `package.json` so Git installs offer the update.
 
 **Testing in OpenChamber.** Install your clone as a folder extension (see [Install](#from-a-local-folder)), run `bun run build`, and reopen the panel or section. Manifest changes (such as a new section) need a window reload.
 
