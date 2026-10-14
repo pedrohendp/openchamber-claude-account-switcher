@@ -2,6 +2,11 @@
 
 All notable changes to this extension are listed here. Versions follow [Semantic Versioning](https://semver.org); the `version` in `package.json` is what OpenChamber compares for Git updates.
 
+## 1.0.1 — 2026-10-14
+
+- Renamed to **Claude Account Switcher** (repository `openchamber-claude-account-switcher`). The extension id stays `claude-accounts`, so existing installs keep their approval and saved logins.
+- Licensed under MIT.
+
 ## 1.0.0 — 2026-10-13
 
 First release.

@@ -1,16 +1,17 @@
 {
-  "name": "openchamber-claude-accounts",
-  "version": "1.0.0",
+  "name": "openchamber-claude-account-switcher",
+  "version": "1.0.1",
   "private": true,
   "description": "Switch the Claude Code account from an OpenChamber side panel.",
   "author": "Pedro Arruda (https://github.com/pedrohendp)",
-  "homepage": "https://github.com/pedrohendp/openchamber-claude-accounts#readme",
+  "license": "MIT",
+  "homepage": "https://github.com/pedrohendp/openchamber-claude-account-switcher#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pedrohendp/openchamber-claude-accounts.git"
+    "url": "git+https://github.com/pedrohendp/openchamber-claude-account-switcher.git"
   },
   "bugs": {
-    "url": "https://github.com/pedrohendp/openchamber-claude-accounts/issues"
+    "url": "https://github.com/pedrohendp/openchamber-claude-account-switcher/issues"
   },
   "keywords": [
     "openchamber",
@@ -33,7 +34,7 @@
     "contributes": {
       "panel": {
         "id": "claude-accounts",
-        "name": "Claude Accounts",
+        "name": "Claude Account Switcher",
         "icon": "team",
         "entry": "panel/index.html"
       },

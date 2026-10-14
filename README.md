@@ -1,10 +1,10 @@
-# Claude Accounts for OpenChamber
+# Claude Account Switcher for OpenChamber
 
 **English** · [Português (Brasil)](./README.pt-BR.md)
 
 Switch the account Claude Code is signed in to, from a panel in [OpenChamber](https://openchamber.dev)'s right-hand rail. Keep a work account and a personal account (or several organizations) signed in and swap between them with one click, without running `claude auth login` again.
 
-<img src="./docs/screenshot-en.jpg" alt="The Claude Accounts panel: the account in use, two saved accounts with Use and Remove buttons, one marked Login expired, and instructions to add another account." width="360" />
+<img src="./docs/screenshot-en.jpg" alt="The Claude Account Switcher panel: the account in use, two saved accounts with Use and Remove buttons, one marked Login expired, and instructions to add another account." width="360" />
 
 The switch applies to everything that reads Claude Code's login on that machine: the `claude-code` provider in OpenChamber ([opencode-claude](https://github.com/openchamber/opencode-claude)) and the `claude` CLI in your terminal.
 
@@ -23,6 +23,7 @@ The switch applies to everything that reads Claude Code's login on that machine:
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
 - [Project layout](#project-layout)
+- [License](#license)
 
 ## Features
 
@@ -48,12 +49,11 @@ The switch applies to everything that reads Claude Code's login on that machine:
 ### From GitHub
 
 1. In OpenChamber, open **Settings → Extensions → Add**.
-2. Paste `https://github.com/pedrohendp/openchamber-claude-accounts.git`.
-   If the repository is private, the OpenChamber server must be able to clone it: an HTTPS address works when Git on that machine already has a stored GitHub login (for example in Git Credential Manager), and an SSH address (`git@github.com:pedrohendp/openchamber-claude-accounts.git`) works with a Git identity picked from the fingerprint menu next to the field.
+2. Paste `https://github.com/pedrohendp/openchamber-claude-account-switcher.git`.
 3. Approve the requested access: read and write `~/.claude.json` and `~/.claude/.credentials.json`.
-4. Click the **Claude Accounts** icon in the right-hand rail.
+4. Click the **Claude Account Switcher** icon in the right-hand rail.
 
-Git installs can be updated from **Settings → Extensions** when a newer `version` is published. Append `#v1.0.0` to the URL to pin a tag.
+Git installs can be updated from **Settings → Extensions** when a newer `version` is published. Append a tag such as `#v1.0.1` to the URL to pin that release.
 
 ### From a local folder
 
@@ -168,3 +168,7 @@ dev/
   serve.ts              Static server for the preview
 docs/                   Screenshots
 ```
+
+## License
+
+[MIT](./LICENSE) © Pedro Arruda

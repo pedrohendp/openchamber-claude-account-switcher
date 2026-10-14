@@ -1,10 +1,10 @@
-# Claude Accounts para OpenChamber
+# Claude Account Switcher para OpenChamber
 
 [English](./README.md) · **Português (Brasil)**
 
 Troque a conta em que o Claude Code está logado a partir de um painel no rail direito do [OpenChamber](https://openchamber.dev). Mantenha uma conta de trabalho e uma pessoal (ou várias organizações) logadas e alterne entre elas com um clique, sem rodar `claude auth login` de novo.
 
-<img src="./docs/screenshot-pt-BR.jpg" alt="O painel Claude Accounts: a conta em uso, duas contas salvas com os botões Usar e Remover, uma marcada como Login expirado, e as instruções para adicionar outra conta." width="360" />
+<img src="./docs/screenshot-pt-BR.jpg" alt="O painel Claude Account Switcher: a conta em uso, duas contas salvas com os botões Usar e Remover, uma marcada como Login expirado, e as instruções para adicionar outra conta." width="360" />
 
 A troca vale para tudo que lê o login do Claude Code naquela máquina: o provider `claude-code` do OpenChamber ([opencode-claude](https://github.com/openchamber/opencode-claude)) e o `claude` no terminal.
 
@@ -23,6 +23,7 @@ A troca vale para tudo que lê o login do Claude Code naquela máquina: o provid
 - [Solução de problemas](#solução-de-problemas)
 - [Desenvolvimento](#desenvolvimento)
 - [Estrutura do projeto](#estrutura-do-projeto)
+- [Licença](#licença)
 
 ## Recursos
 
@@ -48,12 +49,11 @@ A troca vale para tudo que lê o login do Claude Code naquela máquina: o provid
 ### Pelo GitHub
 
 1. No OpenChamber, abra **Settings → Extensions → Add**.
-2. Cole `https://github.com/pedrohendp/openchamber-claude-accounts.git`.
-   Se o repositório for privado, o servidor do OpenChamber precisa conseguir cloná-lo: um endereço HTTPS funciona quando o Git daquela máquina já tem um login do GitHub salvo (por exemplo, no Git Credential Manager), e um endereço SSH (`git@github.com:pedrohendp/openchamber-claude-accounts.git`) funciona com uma Git identity escolhida no menu de digital ao lado do campo.
+2. Cole `https://github.com/pedrohendp/openchamber-claude-account-switcher.git`.
 3. Aprove o acesso pedido: ler e gravar `~/.claude.json` e `~/.claude/.credentials.json`.
-4. Clique no ícone **Claude Accounts** no rail direito.
+4. Clique no ícone **Claude Account Switcher** no rail direito.
 
-Instalações via Git podem ser atualizadas em **Settings → Extensions** quando uma `version` mais nova é publicada. Acrescente `#v1.0.0` ao endereço para fixar uma tag.
+Instalações via Git podem ser atualizadas em **Settings → Extensions** quando uma `version` mais nova é publicada. Acrescente uma tag como `#v1.0.1` ao endereço para fixar essa versão.
 
 ### Por uma pasta local
 
@@ -168,3 +168,7 @@ dev/
   serve.ts              Servidor estático do preview
 docs/                   Screenshots
 ```
+
+## Licença
+
+[MIT](./LICENSE) © Pedro Arruda
