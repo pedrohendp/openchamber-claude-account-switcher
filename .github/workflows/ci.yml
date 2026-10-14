@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Type-check
+        run: bun run type-check
+
+      - name: Test
+        run: bun test
+
+      - name: Validate the extension manifest
+        run: |
+          bun -e "
+            import { readFileSync } from 'node:fs';
+            import { parseManifestJson } from '@openchamber/sdk/schemas';
+            const result = parseManifestJson(readFileSync('package.json', 'utf8'));
+            if (!result.ok) { console.error(result); process.exit(1); }
+            console.log('Manifest OK');
+          "
+
+      # OpenChamber runs the committed panel/main.js and never builds it, so
+      # the committed bundle must match the source.
+      - name: Check that panel/main.js is up to date
+        run: |
+          bun run build
+          git diff --exit-code -- panel/main.js || {
+            echo "::error file=panel/main.js::panel/main.js is stale. Run 'bun run build' and commit it."
+            exit 1
+          }

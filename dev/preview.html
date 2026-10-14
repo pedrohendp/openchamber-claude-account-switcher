@@ -1,0 +1,217 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Claude Accounts — preview</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #111; color: #ddd; font: 13px system-ui, sans-serif; }
+  .layout { display: flex; gap: 16px; padding: 16px; min-height: 100vh; }
+  iframe { width: 360px; height: calc(100vh - 32px); border: 1px solid #333; border-radius: 8px; flex: none; }
+  .side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .side h2 { margin: 0 0 4px; font-size: 14px; }
+  .side h3 { margin: 10px 0 0; font-size: 11px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: #888; }
+  .side p { margin: 0; color: #999; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 6px; }
+  button { font: inherit; color: inherit; background: #262626; border: 1px solid #3a3a3a; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  button:hover { background: #303030; }
+  pre { margin: 0; padding: 10px; background: #1c1c1c; border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px ui-monospace, monospace; }
+  #toasts div { padding: 6px 8px; border-radius: 6px; background: #1f1f1f; margin-bottom: 4px; }
+  body.panel-only .layout { padding: 0; }
+  body.panel-only iframe { width: 100vw; height: 100vh; border: 0; border-radius: 0; }
+  body.panel-only .side { display: none; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <iframe id="panel" src="/panel/index.html" title="Claude Accounts panel"></iframe>
+  <div class="side">
+    <h2>Simulated OpenChamber host</h2>
+    <p>Fake accounts and fake files in memory. Nothing here touches your real Claude Code login.
+      Query parameters: <code>?locale=pt-BR</code>, <code>?theme=light</code>, <code>?panelOnly=1</code>.</p>
+    <h3>Simulate</h3>
+    <div class="toolbar">
+      <button data-action="rotate" title="Claude Code refreshed the active login">Rotate active tokens</button>
+      <button data-action="busy-on">Chat busy</button>
+      <button data-action="busy-off">Chat idle</button>
+      <button data-action="conflict" title="Credentials on disk belong to another saved account">Mismatched login</button>
+      <button data-action="sign-out">Sign out</button>
+      <button data-action="sync" title="Fire visibilitychange so the panel re-reads the files">Panel re-read</button>
+      <button data-action="reset">Reset</button>
+    </div>
+    <h3>Toasts</h3><div id="toasts"></div>
+    <h3>~/.claude/.credentials.json</h3><pre id="credentials"></pre>
+    <h3>~/.claude.json</h3><pre id="config"></pre>
+    <h3>Extension storage</h3><pre id="storage"></pre>
+  </div>
+</div>
+<script>
+// Answers the panel's SDK messages the way OpenChamber does, from in-memory
+// fixtures. The real host also sandboxes the iframe; this preview leaves it
+// same-origin so browser dev tools and screenshots can see inside.
+const params = new URLSearchParams(location.search);
+if (params.get('panelOnly') === '1') document.body.classList.add('panel-only');
+const NOW = Date.now();
+const DAY = 86_400_000;
+const CREDENTIALS = '~/.claude/.credentials.json';
+const CONFIG = '~/.claude.json';
+
+const account = (id, email, organization) => ({
+  accountUuid: `00000000-0000-4000-8000-00000000000${id}`,
+  emailAddress: email,
+  organizationUuid: `00000000-0000-4000-9000-00000000000${id}`,
+  organizationName: organization,
+  displayName: email.split('@')[0],
+});
+const tokens = (id, subscriptionType, rateLimitTier, refreshTokenExpiresAt) => ({
+  accessToken: `fake-access-token-${id}`,
+  refreshToken: `fake-refresh-token-${id}`,
+  expiresAt: NOW + 8 * 3_600_000,
+  refreshTokenExpiresAt,
+  scopes: ['user:inference', 'user:profile'],
+  subscriptionType,
+  rateLimitTier,
+});
+const profile = (accountJson, tokensJson) => ({
+  v: 1,
+  id: `${accountJson.accountUuid}.${accountJson.organizationUuid}`,
+  savedAt: NOW - DAY,
+  oauthAccount: accountJson,
+  claudeAiOauth: tokensJson,
+});
+
+const ada = account(1, 'ada@example.com', 'Analytical Engines Ltd');
+const grace = account(2, 'grace@example.com', "grace@example.com's Organization");
+const linus = account(3, 'linus@example.com', 'Kernel Co');
+
+let files;
+let storage;
+const reset = () => {
+  files = new Map([
+    [CREDENTIALS, JSON.stringify({ mcpOAuth: { 'example-server|1': { accessToken: 'fake-mcp-token' } }, claudeAiOauth: tokens(1, 'team', 'default_claude_max_5x', NOW + 30 * DAY) })],
+    [CONFIG, JSON.stringify({ numStartups: 42, projects: { '/home/ada/app': { allowedTools: [] } }, oauthAccount: ada }, null, 2)],
+  ]);
+  const saved = [
+    profile(grace, tokens(2, 'max', 'default_claude_max_20x', NOW + 20 * DAY)),
+    profile(linus, tokens(3, 'pro', 'default_claude_ai', NOW - DAY)),
+  ];
+  storage = new Map(saved.map((entry) => [`account:${entry.id}`, entry]));
+};
+reset();
+
+const themes = {
+  dark: {
+    background: '#1b1b1b', elevated: '#232323', foreground: '#e6e6e6', muted: '#9a9a9a', subtle: '#2c2c2c', border: '#333333', hover: '#2a2a2a',
+    selection: '#34302a', focus: '#d97757', primary: '#d97757', mutedSurface: '#222222', elevatedForeground: '#e6e6e6', active: '#303030',
+    selectionForeground: '#f0d9cf', primaryForeground: '#1b1b1b', primaryText: '#e8916f', successText: '#7fcf8f', warningText: '#e5c06b',
+    errorText: '#f08a80', infoText: '#80b4f0', success: '#3f9b55', warning: '#c9a03a', error: '#d0574b', info: '#4a86cf',
+  },
+  light: {
+    background: '#ffffff', elevated: '#ffffff', foreground: '#1b1b1b', muted: '#6b6b6b', subtle: '#f0f0f0', border: '#e2e2e2', hover: '#f3f3f3',
+    selection: '#f6e7df', focus: '#c4643f', primary: '#c4643f', mutedSurface: '#f6f6f6', elevatedForeground: '#1b1b1b', active: '#ececec',
+    selectionForeground: '#5c2a17', primaryForeground: '#ffffff', primaryText: '#a9512f', successText: '#2f7a43', warningText: '#8a6514',
+    errorText: '#b33a2f', infoText: '#2c64a8', success: '#3f9b55', warning: '#c9a03a', error: '#d0574b', info: '#4a86cf',
+  },
+};
+const mode = params.get('theme') === 'light' ? 'light' : 'dark';
+const ctx = {
+  locale: params.get('locale') ?? 'en',
+  directory: '/home/ada/app',
+  session: null,
+  surface: 'panel',
+  connection: { connected: false, account: '' },
+  settings: {},
+  item: null,
+  theme: { mode, tokens: { ...themes[mode], font: 'Inter, system-ui, sans-serif', mono: 'ui-monospace, monospace', radius: '8px' } },
+};
+
+const frame = document.getElementById('panel');
+const show = () => {
+  document.getElementById('credentials').textContent = files.get(CREDENTIALS) ?? '(missing)';
+  document.getElementById('config').textContent = files.get(CONFIG) ?? '(missing)';
+  document.getElementById('storage').textContent = [...storage.entries()]
+    .map(([key, value]) => `${key}\n  ${value.oauthAccount?.emailAddress}  refresh=${value.claudeAiOauth?.refreshToken}`)
+    .join('\n') || '(empty)';
+};
+const post = (message) => frame.contentWindow.postMessage({ channel: 'openchamber.sdk', v: 1, ...message }, '*');
+const ok = (id, payload) => post({ type: 'result', id, ok: true, payload });
+const fail = (id, code, error) => post({ type: 'result', id, ok: false, code, error });
+
+window.addEventListener('message', (event) => {
+  if (event.source !== frame.contentWindow) return;
+  const message = event.data;
+  if (!message || message.channel !== 'openchamber.sdk') return;
+  const { id, payload } = message;
+  switch (message.type) {
+    case 'hello':
+      post({ type: 'ready', payload: ctx });
+      return;
+    case 'file-stat':
+      ok(id, files.has(payload.path)
+        ? { kind: 'file', size: files.get(payload.path).length, mtime: NOW }
+        : { kind: 'missing', size: 0, mtime: 0 });
+      return;
+    case 'file-read':
+      if (files.has(payload.path)) ok(id, { content: files.get(payload.path) });
+      else fail(id, 'NOT_FOUND', 'No file at that path.');
+      return;
+    case 'file-write':
+      files.set(payload.path, payload.content);
+      show();
+      ok(id, { written: true });
+      return;
+    case 'storage':
+      if (payload.op === 'keys') ok(id, { storage: true, op: 'keys', keys: [...storage.keys()].sort() });
+      else if (payload.op === 'get') ok(id, storage.has(payload.key) ? { storage: true, op: 'get', found: true, value: storage.get(payload.key) } : { storage: true, op: 'get', found: false });
+      else if (payload.op === 'set') { storage.set(payload.key, payload.value); show(); ok(id, { storage: true, op: 'set' }); }
+      else if (payload.op === 'delete') { storage.delete(payload.key); show(); ok(id, { storage: true, op: 'delete' }); }
+      return;
+    case 'toast': {
+      const line = document.createElement('div');
+      line.textContent = `[${payload.kind}] ${payload.message}`;
+      document.getElementById('toasts').prepend(line);
+      ok(id);
+      return;
+    }
+    default:
+      if (id) ok(id);
+  }
+});
+
+const rereadPanel = () => frame.contentDocument?.dispatchEvent(new Event('visibilitychange'));
+const actions = {
+  rotate: () => {
+    const credentials = JSON.parse(files.get(CREDENTIALS));
+    credentials.claudeAiOauth.accessToken += '-rotated';
+    credentials.claudeAiOauth.refreshToken += '-rotated';
+    files.set(CREDENTIALS, JSON.stringify(credentials));
+  },
+  'busy-on': () => post({ type: 'session', payload: { session: { id: 'ses_preview', title: 'Preview chat', busy: true } } }),
+  'busy-off': () => post({ type: 'session', payload: { session: null } }),
+  conflict: () => {
+    const credentials = JSON.parse(files.get(CREDENTIALS));
+    const other = [...storage.values()].find((entry) => entry.oauthAccount.emailAddress !== JSON.parse(files.get(CONFIG)).oauthAccount?.emailAddress);
+    if (other) credentials.claudeAiOauth = other.claudeAiOauth;
+    files.set(CREDENTIALS, JSON.stringify(credentials));
+    rereadPanel();
+  },
+  'sign-out': () => {
+    const credentials = JSON.parse(files.get(CREDENTIALS));
+    delete credentials.claudeAiOauth;
+    files.set(CREDENTIALS, JSON.stringify(credentials));
+    rereadPanel();
+  },
+  sync: rereadPanel,
+  reset: () => location.reload(),
+};
+document.querySelector('.toolbar').addEventListener('click', (event) => {
+  const action = event.target.closest('button')?.dataset.action;
+  if (!action) return;
+  actions[action]();
+  show();
+});
+frame.addEventListener('load', () => post({ type: 'ready', payload: ctx }));
+show();
+</script>
+</body>
+</html>
