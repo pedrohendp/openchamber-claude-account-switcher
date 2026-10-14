@@ -42,6 +42,13 @@ const en = {
   copied: 'Command copied.',
   storageNote: 'Saved logins live in this extension’s storage on the OpenChamber server. Removing the extension deletes them.',
   notGranted: 'the extension may not read the Claude Code files yet. Approve access in Settings → Extensions.',
+  manage: 'Manage accounts',
+  expiredShort: 'expired',
+  statusEmpty: 'No saved account yet. Open the panel to add one.',
+  statusSignedOut: 'Claude Code is signed out. Pick an account.',
+  statusUnidentified: 'Signed in, but the account is unknown. Refresh once Claude Code finishes setting up.',
+  statusConflict: 'Login and account do not match. Pick an account.',
+  statusBusy: 'A turn is running: a switch applies from the next one.',
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -87,6 +94,13 @@ const pt: Dictionary = {
   copied: 'Comando copiado.',
   storageNote: 'Os logins salvos ficam no armazenamento desta extensão no servidor do OpenChamber. Remover a extensão apaga esses logins.',
   notGranted: 'a extensão ainda não pode ler os arquivos do Claude Code. Aprove o acesso em Settings → Extensions.',
+  manage: 'Gerenciar contas',
+  expiredShort: 'expirado',
+  statusEmpty: 'Nenhuma conta salva ainda. Abra o painel para adicionar.',
+  statusSignedOut: 'Claude Code sem login. Escolha uma conta.',
+  statusUnidentified: 'Com login, mas sem conta identificada. Atualize depois que o Claude Code terminar de configurar.',
+  statusConflict: 'Login e conta não batem. Escolha uma conta.',
+  statusBusy: 'Turno em andamento: a troca vale a partir do próximo.',
 };
 
 export type Translate = (key: MessageKey, values?: Record<string, string | number>) => string;

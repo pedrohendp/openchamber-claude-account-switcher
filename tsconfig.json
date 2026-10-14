@@ -13,5 +13,5 @@
     "noEmit": true,
     "types": ["bun"]
   },
-  "include": ["panel/**/*.ts", "dev/**/*.ts"]
+  "include": ["src/**/*.ts", "panel/**/*.ts", "status/**/*.ts", "dev/**/*.ts"]
 }

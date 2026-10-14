@@ -1,6 +1,6 @@
 // Serves dev/preview.html (a simulated OpenChamber host with fake accounts)
-// next to the built panel, so the UI can be tried without installing it.
-// Run `bun run build` first; the preview loads panel/main.js as shipped.
+// next to the built pages, so the UI can be tried without installing it.
+// Run `bun run build` first; the preview loads the bundles as shipped.
 
 const root = new URL('../', import.meta.url);
 const port = Number(process.env.PORT ?? 4517);
@@ -9,6 +9,8 @@ const files: Record<string, { path: string; type: string }> = {
   '/': { path: 'dev/preview.html', type: 'text/html; charset=utf-8' },
   '/panel/index.html': { path: 'panel/index.html', type: 'text/html; charset=utf-8' },
   '/panel/main.js': { path: 'panel/main.js', type: 'text/javascript; charset=utf-8' },
+  '/status/index.html': { path: 'status/index.html', type: 'text/html; charset=utf-8' },
+  '/status/main.js': { path: 'status/main.js', type: 'text/javascript; charset=utf-8' },
 };
 
 const server = Bun.serve({

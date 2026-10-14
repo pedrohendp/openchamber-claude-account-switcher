@@ -1,4 +1,4 @@
-import { connectHost, HostRequestError } from '@openchamber/sdk';
+import { connectHost } from '@openchamber/sdk';
 import { applyHostReady, mountBadge, mountBanner, mountButton, mountSpinner } from '@openchamber/sdk/ui';
 import {
   removeProfile,
@@ -8,12 +8,9 @@ import {
   type AccountSummary,
   type Profile,
   type Snapshot,
-} from './accounts.ts';
-import { translator, type Translate } from './i18n.ts';
-
-const LOGIN_COMMAND = 'claude auth login --claudeai';
-/** While the panel is visible, the signed-in account's newest tokens are saved this often. */
-const RESYNC_MS = 60_000;
+} from '../src/accounts.ts';
+import { translator, type Translate } from '../src/i18n.ts';
+import { createQueue, describeError, keepInSync, LOGIN_COMMAND, notify as toast } from '../src/runtime.ts';
 
 const css = `
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--oc-bg);color:var(--oc-fg);font-family:var(--oc-font);font-size:13px;line-height:1.45}
@@ -70,24 +67,11 @@ const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', 
   return node;
 };
 
-const notify = (kind: 'info' | 'success' | 'error', message: string): void => {
-  void host.toast({ kind, message, ...(kind === 'error' ? { dismiss: true, copy: true } : {}) }).catch(() => {});
-};
+const notify = (kind: 'info' | 'success' | 'error', message: string): void => toast(host, kind, message);
 
-const errorText = (error: unknown): string => {
-  if (error instanceof HostRequestError) {
-    return error.code === 'NOT_GRANTED' ? t('notGranted') : `${error.code}: ${error.message}`;
-  }
-  return error instanceof Error ? error.message : String(error);
-};
+const errorText = (error: unknown): string => describeError(error, t);
 
-/** Runs one operation at a time, so a background sync never interleaves with a switch. */
-let queue: Promise<void> = Promise.resolve();
-const exclusive = (task: () => Promise<void>): Promise<void> => {
-  const run = queue.then(task, task);
-  queue = run.catch(() => {});
-  return run;
-};
+const exclusive = createQueue();
 
 const load = async (showSpinner: boolean): Promise<void> => {
   const current = ++generation;
@@ -368,11 +352,5 @@ host.onReady((ctx) => {
   shell = { title, refresh, body };
   render();
   void exclusive(() => load(true));
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') sync();
-  });
-  setInterval(() => {
-    if (document.visibilityState === 'visible') sync();
-  }, RESYNC_MS);
+  keepInSync(host, sync);
 });

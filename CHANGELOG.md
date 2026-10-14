@@ -2,6 +2,13 @@
 
 All notable changes to this extension are listed here. Versions follow [Semantic Versioning](https://semver.org); the `version` in `package.json` is what OpenChamber compares for Git updates.
 
+## 1.1.0 — 2026-10-14
+
+- **Switch from the Work Status panel.** A new **Claude Code** section lists every saved account as a radio row with its plan; click one to switch. Expired logins are greyed out, and **Manage accounts** opens the rail panel.
+- Both views stay in sync within seconds: they watch the size and modification time of the two Claude Code files every 3 seconds and re-read when they change, so a switch from the other view, a sign-in from a terminal, or a token rotation shows up right away. Full re-reads every 30 seconds, down from 60.
+- The section also saves rotated tokens when a chat turn ends.
+- Shared code moved to `src/`; `bun run preview` shows both pages.
+
 ## 1.0.1 — 2026-10-14
 
 - Renamed to **Claude Account Switcher** (repository `openchamber-claude-account-switcher`). The extension id stays `claude-accounts`, so existing installs keep their approval and saved logins.

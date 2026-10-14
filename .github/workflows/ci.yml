@@ -37,12 +37,12 @@ jobs:
             console.log('Manifest OK');
           "
 
-      # OpenChamber runs the committed panel/main.js and never builds it, so
-      # the committed bundle must match the source.
-      - name: Check that panel/main.js is up to date
+      # OpenChamber runs the committed bundles and never builds them, so they
+      # must match the source.
+      - name: Check that the bundles are up to date
         run: |
           bun run build
-          git diff --exit-code -- panel/main.js || {
-            echo "::error file=panel/main.js::panel/main.js is stale. Run 'bun run build' and commit it."
+          git diff --exit-code -- panel/main.js status/main.js || {
+            echo "::error::A bundle is stale. Run 'bun run build' and commit panel/main.js and status/main.js."
             exit 1
           }

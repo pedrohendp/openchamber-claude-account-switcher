@@ -1,6 +1,6 @@
 {
   "name": "openchamber-claude-account-switcher",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "description": "Switch the Claude Code account from an OpenChamber side panel.",
   "author": "Pedro Arruda (https://github.com/pedrohendp)",
@@ -21,7 +21,9 @@
   ],
   "type": "module",
   "scripts": {
-    "build": "bun node_modules/@openchamber/sdk/scripts/bundle-guest.ts panel/main.ts panel/main.js",
+    "build": "bun run build:panel && bun run build:status",
+    "build:panel": "bun node_modules/@openchamber/sdk/scripts/bundle-guest.ts panel/main.ts panel/main.js",
+    "build:status": "bun node_modules/@openchamber/sdk/scripts/bundle-guest.ts status/main.ts status/main.js",
     "preview": "bun dev/serve.ts",
     "test": "bun test",
     "type-check": "tsc --noEmit"
@@ -37,6 +39,11 @@
         "name": "Claude Account Switcher",
         "icon": "team",
         "entry": "panel/index.html"
+      },
+      "statusSection": {
+        "entry": "status/index.html",
+        "title": "Claude Code",
+        "height": 96
       },
       "filesystem": [
         "~/.claude.json",
