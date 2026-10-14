@@ -1,0 +1,20 @@
+version: 2
+updates:
+  # The SDK and build tools. A new SDK can change the committed bundles;
+  # CI fails such a pull request until it is rebuilt.
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev-dependencies:
+        patterns: ["*"]
+
+  # Actions are pinned to commit SHAs; this keeps the pins current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

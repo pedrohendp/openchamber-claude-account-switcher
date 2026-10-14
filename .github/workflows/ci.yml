@@ -8,13 +8,21 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned to commit SHAs so a moved tag cannot change what runs.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.2
 
@@ -42,7 +50,7 @@ jobs:
       - name: Check that the bundles are up to date
         run: |
           bun run build
-          git diff --exit-code -- panel/main.js status/main.js || {
-            echo "::error::A bundle is stale. Run 'bun run build' and commit panel/main.js and status/main.js."
+          git diff --exit-code -- panel/main.js status/main.js service/main.js || {
+            echo "::error::A bundle is stale. Run 'bun run build' and commit panel/main.js, status/main.js and service/main.js."
             exit 1
           }

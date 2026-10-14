@@ -1,6 +1,7 @@
 import { HostRequestError, type HostClient } from '@openchamber/sdk';
 import { CONFIG_PATH, CREDENTIALS_PATH } from './accounts.ts';
 import type { Translate } from './i18n.ts';
+import { USAGE_SERVICE_PATH, type UsageReader } from './usage.ts';
 
 // Pieces both pages (the rail panel and the Work Status section) share. Each
 // page is its own iframe and bundle, so this is code reuse, not shared state:
@@ -27,10 +28,17 @@ export const PANEL_SURFACE = 'plugin:claude-accounts';
 
 export const describeError = (error: unknown, t: Translate): string => {
   if (error instanceof HostRequestError) {
-    return error.code === 'NOT_GRANTED' ? t('notGranted') : `${error.code}: ${error.message}`;
+    if (error.code === 'NOT_GRANTED') return t('notGranted');
+    if (error.code === 'NO_SERVICE') return t('noService');
+    return `${error.code}: ${error.message}`;
   }
   return error instanceof Error ? error.message : String(error);
 };
+
+/** Asks the extension's local service for one account's usage. */
+export const usageReader = (host: HostClient): UsageReader => (token) => (
+  host.serviceRequest({ method: 'POST', path: USAGE_SERVICE_PATH, body: JSON.stringify({ token }) })
+);
 
 /** Errors stay until dismissed and can be copied; other toasts time out. */
 export const notify = (host: HostClient, kind: 'info' | 'success' | 'error', message: string): void => {

@@ -10,7 +10,8 @@ import {
   type Snapshot,
 } from '../src/accounts.ts';
 import { translator, type Translate } from '../src/i18n.ts';
-import { createQueue, describeError, keepInSync, LOGIN_COMMAND, notify as toast } from '../src/runtime.ts';
+import { createQueue, describeError, keepInSync, LOGIN_COMMAND, notify as toast, usageReader } from '../src/runtime.ts';
+import { describeUsage, loadUsage, USAGE_CSS, usageBlock, type UsageEntry, type UsageView } from '../src/usage.ts';
 
 const css = `
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--oc-bg);color:var(--oc-fg);font-family:var(--oc-font);font-size:13px;line-height:1.45}
@@ -36,6 +37,7 @@ const css = `
 .command code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 7px;border-radius:6px;background:var(--oc-muted-surface);font:11.5px var(--oc-mono)}
 .note{margin:0;padding-top:12px;border-top:1px solid var(--oc-border);font-size:11px;color:var(--oc-muted)}
 .center{display:flex;justify-content:center;padding:24px 0}
+${USAGE_CSS}
 `;
 
 type View =
@@ -59,6 +61,10 @@ let pending: Pending = null;
 let confirmRemoveId: string | null = null;
 let generation = 0;
 let lastRenderKey = '';
+let usage: Map<string, UsageEntry> | null = null;
+let usageGeneration = 0;
+let forceUsage = false;
+const readUsage = usageReader(host);
 
 const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] => {
   const node = document.createElement(tag);
@@ -88,7 +94,26 @@ const load = async (showSpinner: boolean): Promise<void> => {
     view = { kind: 'error', message: errorText(error) };
   }
   render();
+  void refreshUsage();
 };
+
+/** Every account's usage; a reading younger than two minutes is reused unless Refresh was pressed. */
+async function refreshUsage(): Promise<void> {
+  if (view.kind !== 'ready') return;
+  const { profiles } = view.snapshot;
+  const force = forceUsage;
+  forceUsage = false;
+  const current = ++usageGeneration;
+  let next: Map<string, UsageEntry>;
+  try {
+    next = await loadUsage(host.storage, readUsage, profiles, { force });
+  } catch (error) {
+    next = new Map(profiles.map((profile) => [profile.id, { usage: null, error }]));
+  }
+  if (current !== usageGeneration) return;
+  usage = next;
+  render();
+}
 
 const sync = (): void => {
   if (pending) return;
@@ -143,10 +168,15 @@ const copyCommand = (): void => {
 let mounted: Disposable[] = [];
 let shell: { title: HTMLElement; refresh: ReturnType<typeof mountButton>; body: HTMLElement } | null = null;
 
+const usageOf = (profile: Profile | undefined, now: number): UsageView | null => (
+  profile ? describeUsage(usage?.get(profile.id), profile, now, locale, t, errorText) : null
+);
+
 const accountCard = (
   parent: HTMLElement,
   summary: AccountSummary,
   active: boolean,
+  usageView: UsageView | null,
 ): HTMLElement => {
   const card = element('div', 'account');
   card.dataset.active = active ? 'true' : 'false';
@@ -171,6 +201,7 @@ const accountCard = (
     card.append(badges);
     if (summary.loginExpired) card.append(element('p', 'hint', t('expiredHint')));
   }
+  if (usageView) card.append(usageBlock(usageView));
   parent.append(card);
   return card;
 };
@@ -211,7 +242,8 @@ const renderReady = (body: HTMLElement, snapshot: Snapshot): void => {
 
   // With a conflict the banner above says what is in use; there is no account to show.
   if (active.kind === 'signed-in' && !snapshot.conflictOwnerId) {
-    accountCard(section(body, t('activeSection')), summarize(active.oauthAccount, active.claudeAiOauth, now), true);
+    const profile = snapshot.profiles.find((saved) => saved.id === active.id);
+    accountCard(section(body, t('activeSection')), summarize(active.oauthAccount, active.claudeAiOauth, now), true, usageOf(profile, now));
   } else if (active.kind === 'signed-out') {
     mounted.push(mountBanner(section(body, t('activeSection')), { tone: 'info', title: t('signedOutTitle'), body: t('signedOutBody') }));
   } else if (active.kind === 'unidentified') {
@@ -223,7 +255,7 @@ const renderReady = (body: HTMLElement, snapshot: Snapshot): void => {
   if (listed.length === 0) others.append(element('p', 'hint', t('noOthers')));
   for (const profile of listed) {
     const summary = summarize(profile.oauthAccount, profile.claudeAiOauth, now);
-    const card = accountCard(others, summary, false);
+    const card = accountCard(others, summary, false, usageOf(profile, now));
     const actions = element('div', 'actions');
     if (confirmRemoveId === profile.id) {
       card.append(element('div', 'confirm', t('confirmRemove', { email: summary.email })));
@@ -289,6 +321,7 @@ const renderKey = (): string => {
       profiles: view.snapshot.profiles.map((profile) => [profile.id, summarize(profile.oauthAccount, profile.claudeAiOauth, now)]),
       conflict: view.snapshot.conflictOwnerId,
       unreadable: view.snapshot.unreadable.length,
+      usage: view.snapshot.profiles.map((profile) => usageOf(profile, now)),
     }
     : view;
   return JSON.stringify([locale, visible, sessionBusy, pending, confirmRemoveId]);
@@ -344,7 +377,15 @@ host.onReady((ctx) => {
   const head = element('header', 'head');
   const title = element('h1', '', t('title'));
   const headActions = element('div');
-  const refresh = mountButton(headActions, { label: t('refresh'), variant: 'ghost', size: 'xs', onClick: () => void exclusive(() => load(true)) });
+  const refresh = mountButton(headActions, {
+    label: t('refresh'),
+    variant: 'ghost',
+    size: 'xs',
+    onClick: () => {
+      forceUsage = true;
+      void exclusive(() => load(true));
+    },
+  });
   head.append(title, headActions);
   const body = element('div', 'body');
   app.append(head, body);

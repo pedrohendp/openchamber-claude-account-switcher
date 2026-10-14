@@ -2,11 +2,13 @@ import { connectHost } from '@openchamber/sdk';
 import { applyHostReady } from '@openchamber/sdk/ui';
 import { reconcile, summarize, switchAccount, type Profile, type Snapshot } from '../src/accounts.ts';
 import { translator, type Translate } from '../src/i18n.ts';
-import { createQueue, describeError, keepInSync, notify, PANEL_SURFACE } from '../src/runtime.ts';
+import { createQueue, describeError, keepInSync, notify, PANEL_SURFACE, usageReader } from '../src/runtime.ts';
+import { describeUsage, loadUsage, USAGE_CSS, usageBlock, type UsageEntry } from '../src/usage.ts';
 
 // The Work Status section: every saved account as one radio row, the one in
 // use checked. Clicking another row switches to it. Removing accounts and
-// signing in to new ones stay in the rail panel ("Manage accounts").
+// signing in to new ones stay in the rail panel ("Manage accounts"). Usage
+// stays hidden until "Show usage", so the section stays small.
 
 const css = `
 *{box-sizing:border-box}
@@ -36,6 +38,8 @@ html,body{margin:0;background:transparent;color:var(--oc-fg);font:13px/1.35 var(
 .link{all:unset;cursor:pointer;font-size:12px;color:var(--oc-muted)}
 .link:hover{color:var(--oc-fg);text-decoration:underline}
 .link:focus-visible{border-radius:3px;box-shadow:0 0 0 2px var(--oc-focus)}
+.accounts>.usage{padding:0 6px 6px 26px}
+${USAGE_CSS}
 @media (prefers-reduced-motion:reduce){.account[data-switching="true"] .radio{animation:none}}
 `;
 
@@ -57,7 +61,13 @@ let directory: string | null = null;
 let switchingId: string | null = null;
 let generation = 0;
 let lastRenderKey = '';
+let usageOpen = false;
+let usage: Map<string, UsageEntry> | null = null;
+let usageGeneration = 0;
+let forceUsage = false;
 const exclusive = createQueue();
+const readUsage = usageReader(host);
+const errorText = (error: unknown): string => describeError(error, t);
 
 const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] => {
   const node = document.createElement(tag);
@@ -77,11 +87,36 @@ const load = async (): Promise<void> => {
     view = { kind: 'error', message: describeError(error, t) };
   }
   render();
+  void refreshUsage();
 };
+
+/** Reads usage only while it is shown; a reading younger than two minutes is reused. */
+async function refreshUsage(): Promise<void> {
+  if (!usageOpen || view.kind !== 'ready') return;
+  const { profiles } = view.snapshot;
+  const force = forceUsage;
+  forceUsage = false;
+  const current = ++usageGeneration;
+  let next: Map<string, UsageEntry>;
+  try {
+    next = await loadUsage(host.storage, readUsage, profiles, { force });
+  } catch (error) {
+    next = new Map(profiles.map((profile) => [profile.id, { usage: null, error }]));
+  }
+  if (current !== usageGeneration || !usageOpen) return;
+  usage = next;
+  render();
+}
 
 const sync = (): void => {
   if (switchingId) return;
   void exclusive(load);
+};
+
+const toggleUsage = (): void => {
+  usageOpen = !usageOpen;
+  render();
+  void refreshUsage();
 };
 
 const choose = (profile: Profile): void => {
@@ -110,11 +145,12 @@ const note = (text: string, tone?: 'warning' | 'error'): HTMLElement => {
   return node;
 };
 
-const link = (parent: HTMLElement, text: string, onClick: () => void): void => {
+const link = (parent: HTMLElement, text: string, onClick: () => void): HTMLButtonElement => {
   const button = element('button', 'link', text);
   button.type = 'button';
   button.addEventListener('click', onClick);
   parent.append(button);
+  return button;
 };
 
 /** Up and down move between rows, as in any radio group; Enter and Space pick. */
@@ -171,6 +207,7 @@ const renderAccounts = (snapshot: Snapshot): void => {
       if (!disabled && !checked) choose(profile);
     });
     group.append(row);
+    if (usageOpen) group.append(usageBlock(describeUsage(usage?.get(profile.id), profile, now, locale, t, errorText)));
   }
   root.append(group);
 
@@ -184,9 +221,10 @@ const renderKey = (): string => {
       active: view.snapshot.active.kind === 'signed-in' ? view.snapshot.active.id : view.snapshot.active.kind,
       profiles: view.snapshot.profiles.map((profile) => [profile.id, summarize(profile.oauthAccount, profile.claudeAiOauth, now)]),
       conflict: view.snapshot.conflictOwnerId,
+      usage: usageOpen && view.snapshot.profiles.map((profile) => describeUsage(usage?.get(profile.id), profile, now, locale, t, errorText)),
     }
     : view;
-  return JSON.stringify([locale, visible, sessionBusy, switchingId, Boolean(directory)]);
+  return JSON.stringify([locale, visible, sessionBusy, switchingId, Boolean(directory), usageOpen]);
 };
 
 function render(): void {
@@ -207,9 +245,15 @@ function render(): void {
   }
 
   const links = element('div', 'links');
+  if (view.kind === 'ready' && view.snapshot.profiles.length > 0) {
+    link(links, t(usageOpen ? 'usageHide' : 'usageShow'), toggleUsage).setAttribute('aria-expanded', String(usageOpen));
+  }
   // Opening the rail panel needs an open project; without one the host has no rail to show.
   if (directory) link(links, t('manage'), () => void host.openSurface(PANEL_SURFACE).catch(() => {}));
-  link(links, view.kind === 'error' ? t('retry') : t('refresh'), sync);
+  link(links, view.kind === 'error' ? t('retry') : t('refresh'), () => {
+    forceUsage = true;
+    sync();
+  });
   root.append(links);
 
   if (focusedIndex !== -1) root.querySelectorAll<HTMLElement>('.account')[focusedIndex]?.focus();

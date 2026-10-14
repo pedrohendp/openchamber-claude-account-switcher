@@ -1,2 +1,8 @@
 node_modules/
 *.zip
+# Never commit a copy of a Claude Code login or local tool output.
+.credentials.json
+.claude.json
+.env*
+.openchamber/
+.playwright-mcp/

@@ -49,6 +49,18 @@ const en = {
   statusUnidentified: 'Signed in, but the account is unknown. Refresh once Claude Code finishes setting up.',
   statusConflict: 'Login and account do not match. Pick an account.',
   statusBusy: 'A turn is running: a switch applies from the next one.',
+  usageShow: 'Show usage',
+  usageHide: 'Hide usage',
+  usageSession: '5-hour',
+  usageWeekly: 'Weekly',
+  usageResets: 'resets {time}',
+  usageWasReset: 'reset since',
+  usageLoading: 'Reading usage…',
+  usageNoReading: 'No recent reading. Use this account to see its usage.',
+  usageNone: 'No limits reported.',
+  usageReadAt: 'Reading from {time}.',
+  usageFailed: 'Could not read usage: {error}',
+  noService: 'the extension’s local service is not approved. Approve it in Settings → Extensions.',
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -101,6 +113,18 @@ const pt: Dictionary = {
   statusUnidentified: 'Com login, mas sem conta identificada. Atualize depois que o Claude Code terminar de configurar.',
   statusConflict: 'Login e conta não batem. Escolha uma conta.',
   statusBusy: 'Turno em andamento: a troca vale a partir do próximo.',
+  usageShow: 'Mostrar uso',
+  usageHide: 'Ocultar uso',
+  usageSession: '5 horas',
+  usageWeekly: 'Semanal',
+  usageResets: 'reinicia {time}',
+  usageWasReset: 'já reiniciou',
+  usageLoading: 'Lendo o uso…',
+  usageNoReading: 'Sem leitura recente. Use esta conta para ver o uso.',
+  usageNone: 'Nenhum limite informado.',
+  usageReadAt: 'Leitura de {time}.',
+  usageFailed: 'Não foi possível ler o uso: {error}',
+  noService: 'o serviço local da extensão não foi aprovado. Aprove em Settings → Extensions.',
 };
 
 export type Translate = (key: MessageKey, values?: Record<string, string | number>) => string;

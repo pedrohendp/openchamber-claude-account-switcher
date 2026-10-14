@@ -14,6 +14,7 @@ import {
   serializeLike,
   summarize,
   switchAccount,
+  usageKey,
   type FileAccess,
   type JsonObject,
   type ProfileStorage,
@@ -243,9 +244,10 @@ describe('switchAccount', () => {
 });
 
 describe('removeProfile', () => {
-  it('deletes only that account', async () => {
+  it('deletes only that account, with its usage reading', async () => {
     const { map, storage } = fakeStorage({
       [profileKey(idOf('a'))]: savedProfile('a'),
+      [usageKey(idOf('a'))]: { v: 1, fetchedAt: NOW, limits: [] },
       [profileKey(idOf('b'))]: savedProfile('b'),
     });
     await removeProfile(storage, idOf('a'));

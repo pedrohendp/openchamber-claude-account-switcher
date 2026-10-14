@@ -142,6 +142,9 @@ export type Profile = {
 
 export const profileKey = (id: string): string => `${PROFILE_KEY_PREFIX}${id}`;
 
+/** The last usage reading of an account (src/usage.ts). */
+export const usageKey = (id: string): string => `usage:${id}`;
+
 const profileJson = (profile: Profile): JsonObject => ({
   v: 1,
   id: profile.id,
@@ -312,6 +315,7 @@ export const switchAccount = async (
 
 export const removeProfile = async (storage: ProfileStorage, id: string): Promise<void> => {
   await storage.delete(profileKey(id));
+  await storage.delete(usageKey(id));
 };
 
 export type AccountSummary = {
