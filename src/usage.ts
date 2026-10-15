@@ -41,6 +41,13 @@ export type UsageEntry = {
 /** Sends one access token to the service; `host.serviceRequest` answers it. */
 export type UsageReader = (accessToken: string) => Promise<{ status: number; body: string }>;
 
+/**
+ * The last call per account and how it ended, kept by each page. A failed
+ * call is not retried before the TTL either, so a rejected token or a rate
+ * limit does not turn every re-read into another request.
+ */
+export type UsageAttempts = Map<string, { at: number; error: unknown }>;
+
 const scopeName = (scope: JsonValue | undefined): string | null => {
   if (!isJsonObject(scope)) return null;
   for (const part of [scope.model, scope.surface]) {
@@ -85,13 +92,19 @@ export const loadUsage = async (
   storage: ProfileStorage,
   read: UsageReader,
   profiles: readonly Profile[],
-  options: { now?: number; force?: boolean } = {},
+  options: { now?: number; force?: boolean; attempts?: UsageAttempts } = {},
 ): Promise<Map<string, UsageEntry>> => {
   const now = options.now ?? Date.now();
+  const attempts = options.attempts ?? new Map();
   const entries = await Promise.all(profiles.map(async (profile): Promise<[string, UsageEntry]> => {
     let usage = readCached(await storage.get(usageKey(profile.id)));
     const token = accessToken(profile, now);
-    if (!token || (!options.force && usage && now - usage.fetchedAt < USAGE_TTL_MS)) return [profile.id, { usage, error: null }];
+    if (!token) return [profile.id, { usage, error: null }];
+    const fresh = usage !== null && now - usage.fetchedAt < USAGE_TTL_MS;
+    const attempt = attempts.get(profile.id);
+    if (!options.force && fresh) return [profile.id, { usage, error: null }];
+    if (!options.force && attempt && now - attempt.at < USAGE_TTL_MS) return [profile.id, { usage, error: attempt.error }];
+    attempts.set(profile.id, { at: now, error: null });
     try {
       const answer = await read(token);
       if (answer.status !== 200) throw new Error(`HTTP ${answer.status}`);
@@ -103,6 +116,7 @@ export const loadUsage = async (
       await storage.set(usageKey(profile.id), { v: 1, fetchedAt: now, limits: raw });
       return [profile.id, { usage, error: null }];
     } catch (error) {
+      attempts.set(profile.id, { at: now, error });
       return [profile.id, { usage, error }];
     }
   }));

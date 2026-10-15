@@ -1,5 +1,5 @@
 import { HostRequestError, type HostClient } from '@openchamber/sdk';
-import { CONFIG_PATH, CREDENTIALS_PATH } from './accounts.ts';
+import { CONFIG_PATH, CREDENTIALS_PATH, REVISION_KEY } from './accounts.ts';
 import type { Translate } from './i18n.ts';
 import { USAGE_SERVICE_PATH, type UsageReader } from './usage.ts';
 
@@ -45,6 +45,15 @@ export const notify = (host: HostClient, kind: 'info' | 'success' | 'error', mes
   void host.toast({ kind, message, ...(kind === 'error' ? { dismiss: true, copy: true } : {}) }).catch(() => {});
 };
 
+/** Re-reads once a login that is still settling has had time to (see `SETTLE_MS`). */
+export const createSettleTimer = (sync: () => void): ((settlingMs: number) => void) => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return (settlingMs) => {
+    clearTimeout(timer);
+    if (settlingMs > 0) timer = setTimeout(sync, settlingMs + 250);
+  };
+};
+
 /** Runs one operation at a time, so a background re-read never interleaves with a switch. */
 export const createQueue = (): ((task: () => Promise<void>) => Promise<void>) => {
   let queue: Promise<void> = Promise.resolve();
@@ -57,7 +66,8 @@ export const createQueue = (): ((task: () => Promise<void>) => Promise<void>) =>
 
 /**
  * Calls `sync` when the page becomes visible, as soon as either Claude Code
- * file changes while it is visible, and every `RESYNC_MS` regardless.
+ * file or the saved accounts change while it is visible, and every
+ * `RESYNC_MS` regardless.
  */
 export const keepInSync = (host: HostClient, sync: () => void): void => {
   const visible = (): boolean => document.visibilityState === 'visible';
@@ -67,8 +77,11 @@ export const keepInSync = (host: HostClient, sync: () => void): void => {
     if (checking) return;
     checking = true;
     try {
-      const stats = await Promise.all([CREDENTIALS_PATH, CONFIG_PATH].map((path) => host.stat(path)));
-      const next = JSON.stringify(stats.map(({ kind, size, mtime }) => [kind, size, mtime]));
+      const [revision, ...stats] = await Promise.all([
+        host.storage.get(REVISION_KEY),
+        ...[CREDENTIALS_PATH, CONFIG_PATH].map((path) => host.stat(path)),
+      ]);
+      const next = JSON.stringify([revision ?? null, stats.map(({ kind, size, mtime }) => [kind, size, mtime])]);
       if (fingerprint !== null && next !== fingerprint) sync();
       fingerprint = next;
     } catch {

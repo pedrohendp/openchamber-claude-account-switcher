@@ -1,6 +1,7 @@
 import { connectHost } from '@openchamber/sdk';
 import { applyHostReady, mountBadge, mountBanner, mountButton, mountSpinner } from '@openchamber/sdk/ui';
 import {
+  createSettle,
   removeProfile,
   reconcile,
   summarize,
@@ -10,8 +11,8 @@ import {
   type Snapshot,
 } from '../src/accounts.ts';
 import { translator, type Translate } from '../src/i18n.ts';
-import { createQueue, describeError, keepInSync, LOGIN_COMMAND, notify as toast, usageReader } from '../src/runtime.ts';
-import { describeUsage, loadUsage, USAGE_CSS, usageBlock, type UsageEntry, type UsageView } from '../src/usage.ts';
+import { createQueue, createSettleTimer, describeError, keepInSync, LOGIN_COMMAND, notify as toast, usageReader } from '../src/runtime.ts';
+import { describeUsage, loadUsage, USAGE_CSS, usageBlock, type UsageAttempts, type UsageEntry, type UsageView } from '../src/usage.ts';
 
 const css = `
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--oc-bg);color:var(--oc-fg);font-family:var(--oc-font);font-size:13px;line-height:1.45}
@@ -65,6 +66,7 @@ let usage: Map<string, UsageEntry> | null = null;
 let usageGeneration = 0;
 let forceUsage = false;
 const readUsage = usageReader(host);
+const usageAttempts: UsageAttempts = new Map();
 
 const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] => {
   const node = document.createElement(tag);
@@ -78,6 +80,7 @@ const notify = (kind: 'info' | 'success' | 'error', message: string): void => to
 const errorText = (error: unknown): string => describeError(error, t);
 
 const exclusive = createQueue();
+const settle = createSettle();
 
 const load = async (showSpinner: boolean): Promise<void> => {
   const current = ++generation;
@@ -86,9 +89,10 @@ const load = async (showSpinner: boolean): Promise<void> => {
     render();
   }
   try {
-    const snapshot = await reconcile(host, host.storage);
+    const snapshot = await reconcile(host, host.storage, Date.now(), settle);
     if (current !== generation) return;
     view = { kind: 'ready', snapshot };
+    resyncWhenSettled(snapshot.settlingMs);
   } catch (error) {
     if (current !== generation) return;
     view = { kind: 'error', message: errorText(error) };
@@ -106,7 +110,7 @@ async function refreshUsage(): Promise<void> {
   const current = ++usageGeneration;
   let next: Map<string, UsageEntry>;
   try {
-    next = await loadUsage(host.storage, readUsage, profiles, { force });
+    next = await loadUsage(host.storage, readUsage, profiles, { force, attempts: usageAttempts });
   } catch (error) {
     next = new Map(profiles.map((profile) => [profile.id, { usage: null, error }]));
   }
@@ -120,6 +124,8 @@ const sync = (): void => {
   void exclusive(() => load(false));
 };
 
+const resyncWhenSettled = createSettleTimer(sync);
+
 const use = (profile: Profile, summary: AccountSummary): void => {
   if (pending) return;
   pending = { kind: 'switch', id: profile.id };
@@ -127,7 +133,7 @@ const use = (profile: Profile, summary: AccountSummary): void => {
   render();
   void exclusive(async () => {
     try {
-      const result = await switchAccount(host, host.storage, profile.id);
+      const result = await switchAccount(host, host.storage, profile.id, Date.now(), settle);
       notify(result.kind === 'switched' ? 'success' : 'info', t(result.kind === 'switched' ? 'switched' : 'alreadyActive', { email: summary.email }));
     } catch (error) {
       notify('error', t('switchFailed', { error: errorText(error) }));
@@ -221,6 +227,7 @@ const renderReady = (body: HTMLElement, snapshot: Snapshot): void => {
   if (sessionBusy) {
     mounted.push(mountBanner(body, { tone: 'info', title: t('busyTitle'), body: t('busyBody') }));
   }
+  if (snapshot.settlingMs > 0) body.append(element('p', 'hint', t('settling')));
   if (snapshot.conflictOwnerId && active.kind === 'signed-in') {
     const owner = snapshot.profiles.find((profile) => profile.id === snapshot.conflictOwnerId);
     mounted.push(mountBanner(body, {
@@ -320,6 +327,7 @@ const renderKey = (): string => {
         : view.snapshot.active.kind,
       profiles: view.snapshot.profiles.map((profile) => [profile.id, summarize(profile.oauthAccount, profile.claudeAiOauth, now)]),
       conflict: view.snapshot.conflictOwnerId,
+      settling: view.snapshot.settlingMs > 0,
       unreadable: view.snapshot.unreadable.length,
       usage: view.snapshot.profiles.map((profile) => usageOf(profile, now)),
     }

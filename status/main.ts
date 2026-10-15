@@ -1,9 +1,9 @@
 import { connectHost } from '@openchamber/sdk';
 import { applyHostReady } from '@openchamber/sdk/ui';
-import { reconcile, summarize, switchAccount, type Profile, type Snapshot } from '../src/accounts.ts';
+import { createSettle, reconcile, summarize, switchAccount, type Profile, type Snapshot } from '../src/accounts.ts';
 import { translator, type Translate } from '../src/i18n.ts';
-import { createQueue, describeError, keepInSync, notify, PANEL_SURFACE, usageReader } from '../src/runtime.ts';
-import { describeUsage, loadUsage, USAGE_CSS, usageBlock, type UsageEntry } from '../src/usage.ts';
+import { createQueue, createSettleTimer, describeError, keepInSync, notify, PANEL_SURFACE, usageReader } from '../src/runtime.ts';
+import { describeUsage, loadUsage, USAGE_CSS, usageBlock, type UsageAttempts, type UsageEntry } from '../src/usage.ts';
 
 // The Work Status section: every saved account as one radio row, the one in
 // use checked. Clicking another row switches to it. Removing accounts and
@@ -66,7 +66,9 @@ let usage: Map<string, UsageEntry> | null = null;
 let usageGeneration = 0;
 let forceUsage = false;
 const exclusive = createQueue();
+const settle = createSettle();
 const readUsage = usageReader(host);
+const usageAttempts: UsageAttempts = new Map();
 const errorText = (error: unknown): string => describeError(error, t);
 
 const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] => {
@@ -79,9 +81,10 @@ const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', 
 const load = async (): Promise<void> => {
   const current = ++generation;
   try {
-    const snapshot = await reconcile(host, host.storage);
+    const snapshot = await reconcile(host, host.storage, Date.now(), settle);
     if (current !== generation) return;
     view = { kind: 'ready', snapshot };
+    resyncWhenSettled(snapshot.settlingMs);
   } catch (error) {
     if (current !== generation) return;
     view = { kind: 'error', message: describeError(error, t) };
@@ -99,7 +102,7 @@ async function refreshUsage(): Promise<void> {
   const current = ++usageGeneration;
   let next: Map<string, UsageEntry>;
   try {
-    next = await loadUsage(host.storage, readUsage, profiles, { force });
+    next = await loadUsage(host.storage, readUsage, profiles, { force, attempts: usageAttempts });
   } catch (error) {
     next = new Map(profiles.map((profile) => [profile.id, { usage: null, error }]));
   }
@@ -112,6 +115,8 @@ const sync = (): void => {
   if (switchingId) return;
   void exclusive(load);
 };
+
+const resyncWhenSettled = createSettleTimer(sync);
 
 const toggleUsage = (): void => {
   usageOpen = !usageOpen;
@@ -126,7 +131,7 @@ const choose = (profile: Profile): void => {
   void exclusive(async () => {
     const { email } = summarize(profile.oauthAccount, profile.claudeAiOauth, Date.now());
     try {
-      const result = await switchAccount(host, host.storage, profile.id);
+      const result = await switchAccount(host, host.storage, profile.id, Date.now(), settle);
       notify(host, result.kind === 'switched' ? 'success' : 'info', t(result.kind === 'switched' ? 'switched' : 'alreadyActive', { email }));
     } catch (error) {
       notify(host, 'error', t('switchFailed', { error: describeError(error, t) }));
@@ -168,7 +173,8 @@ const renderAccounts = (snapshot: Snapshot): void => {
   const { active, profiles, conflictOwnerId } = snapshot;
   const activeId = active.kind === 'signed-in' && !conflictOwnerId ? active.id : null;
 
-  if (conflictOwnerId) note(t('statusConflict'), 'warning');
+  if (snapshot.settlingMs > 0) note(t('settling'));
+  else if (conflictOwnerId) note(t('statusConflict'), 'warning');
   else if (active.kind === 'unidentified') note(t('statusUnidentified'), 'warning');
   else if (active.kind === 'signed-out' && profiles.length > 0) note(t('statusSignedOut'));
 
@@ -221,6 +227,7 @@ const renderKey = (): string => {
       active: view.snapshot.active.kind === 'signed-in' ? view.snapshot.active.id : view.snapshot.active.kind,
       profiles: view.snapshot.profiles.map((profile) => [profile.id, summarize(profile.oauthAccount, profile.claudeAiOauth, now)]),
       conflict: view.snapshot.conflictOwnerId,
+      settling: view.snapshot.settlingMs > 0,
       usage: usageOpen && view.snapshot.profiles.map((profile) => describeUsage(usage?.get(profile.id), profile, now, locale, t, errorText)),
     }
     : view;

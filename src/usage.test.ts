@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import type { JsonValue } from '@openchamber/sdk';
 import { usageKey, type Profile, type ProfileStorage } from './accounts.ts';
 import { translator } from './i18n.ts';
-import { describeUsage, loadUsage, parseLimits, type UsageReader } from './usage.ts';
+import { describeUsage, loadUsage, parseLimits, type UsageAttempts, type UsageReader } from './usage.ts';
 
 const NOW = Date.parse('2026-10-14T12:00:00Z');
 const HOUR = 3_600_000;
@@ -74,6 +74,18 @@ describe('loadUsage', () => {
     const entries = await loadUsage(storage, read, [profile('a', NOW - HOUR)], { now: NOW });
     expect(calls).toEqual([]);
     expect(entries.get('a')).toMatchObject({ usage: { fetchedAt: NOW - 5 * HOUR }, error: null });
+  });
+
+  it('does not retry a failed call before the TTL, and keeps reporting the failure', async () => {
+    const { storage } = fakeStorage();
+    const { calls, read } = reader(429);
+    const attempts: UsageAttempts = new Map();
+    await loadUsage(storage, read, [profile('a')], { now: NOW, attempts });
+    const again = await loadUsage(storage, read, [profile('a')], { now: NOW + 30_000, attempts });
+    expect(calls).toHaveLength(1);
+    expect(String(again.get('a')?.error)).toContain('HTTP 429');
+    await loadUsage(storage, read, [profile('a')], { now: NOW + 3 * 60_000, attempts });
+    expect(calls).toHaveLength(2);
   });
 
   it('reports a failed call next to the cached reading', async () => {

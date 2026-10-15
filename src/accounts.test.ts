@@ -4,6 +4,7 @@ import {
   activeLogin,
   ClaudeFileError,
   CONFIG_PATH,
+  createSettle,
   CREDENTIALS_PATH,
   loadProfiles,
   parseJsonFile,
@@ -11,7 +12,9 @@ import {
   readProfile,
   reconcile,
   removeProfile,
+  REVISION_KEY,
   serializeLike,
+  SETTLE_MS,
   summarize,
   switchAccount,
   usageKey,
@@ -187,6 +190,36 @@ describe('reconcile', () => {
     expect(snapshot.conflictOwnerId).toBe(idOf('b'));
     expect(map.get(profileKey(idOf('a')))).toEqual(savedProfile('a'));
   });
+
+  it('waits out a sign-in that has written the new tokens but not yet the account name', async () => {
+    // `claude auth login` for B: the tokens land first, the name follows.
+    const files = fakeFiles({ [CREDENTIALS_PATH]: credentialsFile(tokens('b')), [CONFIG_PATH]: configFile(account('a')) });
+    const { map, storage } = fakeStorage({ [profileKey(idOf('a'))]: savedProfile('a') });
+    const settle = createSettle();
+
+    const midway = await reconcile(files.access, storage, NOW, settle);
+    expect(midway.settlingMs).toBe(SETTLE_MS);
+    expect(map.get(profileKey(idOf('a')))).toEqual(savedProfile('a'));
+
+    files.files.set(CONFIG_PATH, configFile(account('b')));
+    await reconcile(files.access, storage, NOW + 2_000, settle);
+    expect(map.has(profileKey(idOf('b')))).toBe(false);
+
+    const settled = await reconcile(files.access, storage, NOW + 2_000 + SETTLE_MS, settle);
+    expect(settled.settlingMs).toBe(0);
+    expect(map.get(profileKey(idOf('b')))).toMatchObject({ claudeAiOauth: tokens('b') });
+    expect(map.get(profileKey(idOf('a')))).toEqual(savedProfile('a'));
+  });
+
+  it('tells the other page that the saved accounts changed', async () => {
+    const files = fakeFiles({ [CREDENTIALS_PATH]: credentialsFile(tokens('a')), [CONFIG_PATH]: configFile(account('a')) });
+    const { map, storage } = fakeStorage();
+    await reconcile(files.access, storage, NOW);
+    const first = map.get(REVISION_KEY);
+    expect(first).toBeDefined();
+    await reconcile(files.access, storage, NOW);
+    expect(map.get(REVISION_KEY)).toBe(first);
+  });
 });
 
 describe('switchAccount', () => {
@@ -235,6 +268,28 @@ describe('switchAccount', () => {
     expect(parse(files.files.get(CREDENTIALS_PATH))).toEqual({ claudeAiOauth: tokens('b') });
   });
 
+  it('saves freshly rotated tokens before switching away', async () => {
+    const files = fakeFiles({ [CREDENTIALS_PATH]: credentialsFile(tokens('a', 3)), [CONFIG_PATH]: configFile(account('a')) });
+    const { map, storage } = fakeStorage({
+      [profileKey(idOf('a'))]: savedProfile('a', 1),
+      [profileKey(idOf('b'))]: savedProfile('b'),
+    });
+    const waits: number[] = [];
+    const result = await switchAccount(files.access, storage, idOf('b'), NOW, createSettle(), async (ms) => { waits.push(ms); });
+    expect(waits).toEqual([SETTLE_MS]);
+    expect(result.kind).toBe('switched');
+    expect(map.get(profileKey(idOf('a')))).toMatchObject({ claudeAiOauth: { refreshToken: 'refresh-a3' } });
+  });
+
+  it('refuses to switch while Claude Code keeps rewriting its login', async () => {
+    const files = fakeFiles({ [CREDENTIALS_PATH]: credentialsFile(tokens('a', 2)), [CONFIG_PATH]: configFile(account('a')) });
+    const { storage } = fakeStorage({ [profileKey(idOf('b'))]: savedProfile('b') });
+    let version = 2;
+    const rewrite = async () => { files.files.set(CREDENTIALS_PATH, credentialsFile(tokens('a', ++version))); };
+    await expect(switchAccount(files.access, storage, idOf('b'), NOW, createSettle(), rewrite)).rejects.toThrow('still writing');
+    expect(files.writes).toEqual([]);
+  });
+
   it('refuses an account that is no longer saved', async () => {
     const files = fakeFiles({ [CREDENTIALS_PATH]: credentialsFile(tokens('a')), [CONFIG_PATH]: configFile(account('a')) });
     const { storage } = fakeStorage();
@@ -251,7 +306,7 @@ describe('removeProfile', () => {
       [profileKey(idOf('b'))]: savedProfile('b'),
     });
     await removeProfile(storage, idOf('a'));
-    expect([...map.keys()]).toEqual([profileKey(idOf('b'))]);
+    expect([...map.keys()].sort()).toEqual([profileKey(idOf('b')), REVISION_KEY]);
   });
 });
 

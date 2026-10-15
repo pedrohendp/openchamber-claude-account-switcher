@@ -1,6 +1,6 @@
 {
   "name": "openchamber-claude-account-switcher",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "Switch the Claude Code account from an OpenChamber side panel.",
   "author": "Pedro Arruda (https://github.com/pedrohendp)",
