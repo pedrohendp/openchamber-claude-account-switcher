@@ -153,7 +153,7 @@ export const usageKey = (id: string): string => `usage:${id}`;
 export const REVISION_KEY = 'revision';
 
 const bumpRevision = (storage: ProfileStorage, now: number): Promise<void> => (
-  storage.set(REVISION_KEY, `${now}.${Math.random().toString(36).slice(2, 10)}`)
+  storage.set(REVISION_KEY, `${now}.${crypto.getRandomValues(new Uint32Array(1))[0]}`)
 );
 
 /**
