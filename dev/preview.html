@@ -187,7 +187,7 @@ const show = () => {
   document.getElementById('credentials').textContent = files.get(CREDENTIALS) ?? '(missing)';
   document.getElementById('config').textContent = files.get(CONFIG) ?? '(missing)';
   document.getElementById('storage').textContent = [...storage.entries()]
-    .map(([key, value]) => `${key}\n  ${value.oauthAccount
+    .map(([key, value]) => typeof value !== 'object' ? `${key}\n  ${value}` : `${key}\n  ${value.oauthAccount
       ? `${value.oauthAccount.emailAddress}  refresh=${value.claudeAiOauth?.refreshToken}`
       : `read at ${new Date(value.fetchedAt).toLocaleTimeString()}: ${value.limits.map((item) => `${item.percent}%`).join(' ')}`}`)
     .join('\n') || '(empty)';

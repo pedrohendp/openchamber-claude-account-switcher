@@ -145,6 +145,42 @@ export const profileKey = (id: string): string => `${PROFILE_KEY_PREFIX}${id}`;
 /** The last usage reading of an account (src/usage.ts). */
 export const usageKey = (id: string): string => `usage:${id}`;
 
+/**
+ * Changes on every save or removal of an account. The two pages watch it, so
+ * a change made in one shows in the other within seconds instead of at its
+ * next full re-read.
+ */
+export const REVISION_KEY = 'revision';
+
+const bumpRevision = (storage: ProfileStorage, now: number): Promise<void> => (
+  storage.set(REVISION_KEY, `${now}.${Math.random().toString(36).slice(2, 10)}`)
+);
+
+/**
+ * How long the login on disk must look the same before it is saved. Signing
+ * in writes the new tokens and the new account name one after the other;
+ * read in between, the tokens of one account sit under the name of another.
+ * Waiting until neither changes lets both writes land.
+ */
+export const SETTLE_MS = 10_000;
+
+/** Says how long a login has looked the same. Each page keeps its own. */
+export type Settle = (login: string, now: number) => number;
+
+export const createSettle = (): Settle => {
+  let last = '';
+  let since = 0;
+  return (login, now) => {
+    if (login !== last) {
+      last = login;
+      since = now;
+    }
+    return now - since;
+  };
+};
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
 const profileJson = (profile: Profile): JsonObject => ({
   v: 1,
   id: profile.id,
@@ -230,24 +266,41 @@ export type Snapshot = {
   unreadable: string[];
   /** Set when the active tokens belong to another saved account. */
   conflictOwnerId: string | null;
+  /** A login that changed less than `SETTLE_MS` ago is saved this much later. */
+  settlingMs: number;
 };
 
-/** Reads both Claude files and the saved logins, and stores the signed-in one. */
-export const reconcile = async (files: FileAccess, storage: ProfileStorage, now = Date.now()): Promise<Snapshot> => {
+/**
+ * Reads both Claude files and the saved logins, and stores the signed-in one.
+ * With `settle`, a login is stored only once it has looked the same for
+ * `SETTLE_MS`; without it, right away.
+ */
+export const reconcile = async (
+  files: FileAccess,
+  storage: ProfileStorage,
+  now = Date.now(),
+  settle?: Settle,
+): Promise<Snapshot> => {
   const [state, list] = await Promise.all([readClaudeState(files), loadProfiles(storage)]);
   const active = activeLogin(state);
   let profiles = list.profiles;
   let conflictOwnerId: string | null = null;
+  let settlingMs = 0;
   if (active.kind === 'signed-in') {
+    const login = JSON.stringify([active.id, active.claudeAiOauth.accessToken, active.claudeAiOauth.refreshToken]);
+    const stableFor = settle ? settle(login, now) : SETTLE_MS;
     const plan = planTrack(active, profiles, now);
     if (plan.kind === 'conflict') {
       conflictOwnerId = plan.ownerId;
+    } else if (plan.kind === 'save' && stableFor < SETTLE_MS) {
+      settlingMs = SETTLE_MS - stableFor;
     } else if (plan.kind === 'save') {
       await storage.set(profileKey(plan.profile.id), profileJson(plan.profile));
+      await bumpRevision(storage, now);
       profiles = sortProfiles([...profiles.filter((profile) => profile.id !== plan.profile.id), plan.profile]);
     }
   }
-  return { active, profiles, unreadable: list.unreadable, conflictOwnerId };
+  return { active, profiles, unreadable: list.unreadable, conflictOwnerId, settlingMs };
 };
 
 export class SwitchError extends Error {
@@ -263,17 +316,27 @@ export type SwitchResult =
 
 /**
  * Makes `targetId` the Claude Code login. The current login is saved first,
- * from a fresh read, so its newest tokens are kept. The credentials are
- * written before the config; if the config write fails the credentials are
- * put back, so the two files never name different accounts.
+ * from a fresh read, so its newest tokens are kept; when it changed moments
+ * ago, the switch waits for it to settle (see `SETTLE_MS`). The credentials
+ * are written before the config; if the config write fails the credentials
+ * are put back, so the two files never name different accounts.
  */
 export const switchAccount = async (
   files: FileAccess,
   storage: ProfileStorage,
   targetId: string,
   now = Date.now(),
+  settle?: Settle,
+  wait = sleep,
 ): Promise<SwitchResult> => {
-  const snapshot = await reconcile(files, storage, now);
+  let snapshot = await reconcile(files, storage, now, settle);
+  for (let round = 0; snapshot.settlingMs > 0; round++) {
+    // Overwriting a login that was never saved would lose it.
+    if (round === 2) throw new SwitchError('Claude Code is still writing its login. Try again in a few seconds.');
+    await wait(snapshot.settlingMs);
+    now += snapshot.settlingMs;
+    snapshot = await reconcile(files, storage, now, settle);
+  }
   if (snapshot.active.kind === 'signed-in' && snapshot.active.id === targetId && snapshot.conflictOwnerId === null) {
     const current = snapshot.profiles.find((profile) => profile.id === targetId);
     if (current) return { kind: 'already-active', profile: current };
@@ -316,6 +379,7 @@ export const switchAccount = async (
 export const removeProfile = async (storage: ProfileStorage, id: string): Promise<void> => {
   await storage.delete(profileKey(id));
   await storage.delete(usageKey(id));
+  await bumpRevision(storage, Date.now());
 };
 
 export type AccountSummary = {

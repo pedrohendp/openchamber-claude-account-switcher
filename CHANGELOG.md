@@ -2,6 +2,14 @@
 
 All notable changes to this extension are listed here. Versions follow [Semantic Versioning](https://semver.org); the `version` in `package.json` is what OpenChamber compares for Git updates.
 
+## 1.2.1 — 2026-10-15
+
+- **Fix: a new sign-in could be saved under the previous account.** `claude auth login` writes the new tokens and the new account name one after the other; read in between, the new tokens were saved as the old account, the new account never appeared, and switching to the old account later signed in as the new one. A login is now saved only after it has looked the same for 10 seconds; meanwhile both views say Claude Code is updating its login. A switch made right after Claude Code renewed its tokens waits for them in the same way, so they are saved first.
+- **Fix: a change made in one view took up to 30 seconds to show in the other.** Removing an account in the rail panel, or an account saved by one view, now shows in the other within about 3 seconds.
+- Usage readings that fail (expired token, rate limit) are retried at most every two minutes per account instead of on every re-read.
+
+If an account shows the wrong login after using 1.2.0 (for example "Login and account do not match" after switching to it), remove it and sign in with it again.
+
 ## 1.2.0 — 2026-10-14
 
 - **Plan usage per account.** The 5-hour session, the weekly limit, and weekly model limits such as Fable, each with the percentage used and when it resets, read from the same Anthropic endpoint as Claude Code's `/usage`. The rail panel shows them on every account card; the Work Status section keeps them hidden until **Show usage**.
