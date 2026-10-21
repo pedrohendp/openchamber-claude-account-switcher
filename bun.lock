@@ -5,14 +5,14 @@
     "": {
       "name": "openchamber-claude-accounts",
       "devDependencies": {
-        "@openchamber/sdk": "2.3.1",
+        "@openchamber/sdk": "2.4.0",
         "@types/bun": "^1.4.3",
         "typescript": "^7.0.2",
       },
     },
   },
   "packages": {
-    "@openchamber/sdk": ["@openchamber/sdk@2.3.1", "", { "dependencies": { "zod": "^4.3.6" }, "bin": { "openchamber-guest-bundle": "scripts/bundle-guest.ts" } }, "sha512-Ss2BctVEqai4ClAwLKeWGxq6gOug536Y/0tvLe9+YRey7JIhQT5OtU6ynM6b4obtxU5MTEmoFpECKsg1pP8tEQ=="],
+    "@openchamber/sdk": ["@openchamber/sdk@2.4.0", "", { "dependencies": { "zod": "^4.3.6" }, "bin": { "openchamber-guest-bundle": "scripts/bundle-guest.ts" } }, "sha512-TSL0DI5o4+pOHSpJ8fMP/fU4E/LTRd3hWHIIiaBHoSjpFNYzxaC91d2SCEUq4uj+OYRk/SMe6KiUPtr5Q0rwHA=="],
 
     "@types/bun": ["@types/bun@1.4.3", "", { "dependencies": { "bun-types": "1.4.3" } }, "sha512-N67Pqy8JXbAY/j0tNraS3V5mubGvc6rrrNDmDCtZLlFzccbUJPDb0tvgUBC5q4m8ybkP93Jcn1QB+RYQ6PvBhw=="],
 
